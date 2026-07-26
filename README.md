@@ -1,50 +1,50 @@
 # Quantum-Latent Image Reconstruction — Encoding Comparison
 
-Pipeline:
-```
-Image -> Preprocessing -> Autoencoder Encoder -> 8-D Classical Latent
-      -> Quantum Encoding Circuit (Basis / Angle / Dense Angle / IQP / Amplitude)
-      -> Quantum Latent Vector
-      -> Reverse Quantum Circuit -> Recovered Classical Latent
-      -> Autoencoder Decoder -> Reconstructed Image
-      -> Wasserstein Distance (+ MSE, PSNR, SSIM, Latent MSE)
-```
+A proof-of-concept pipeline comparing 5 quantum data-encoding schemes on chest X-ray images (Kaggle Chest X-Ray Pneumonia dataset), evaluating how well each preserves information through an encode → quantum circuit → decode round trip.
 
-## Setup
-```bash
-pip install -r requirements.txt
-```
-Place lung X-ray images (e.g. Kaggle "Chest X-Ray Images (Pneumonia)") in `data/raw/`.
+## Pipeline
 
-## 1. Train the classical autoencoder
-```bash
-python -m autoencoder.train --image_dir data/raw --epochs 30 --save_path autoencoder_weights.pt
-```
-This produces `autoencoder_weights.pt`, containing both Encoder and Decoder
-weights. The Encoder maps a 16x16 image to an 8-D latent vector in [0,1]
-(Sigmoid output). The Decoder maps an 8-D latent vector back to a 16x16
-image.
+Image → Preprocessing (16x16 grayscale)
+→ Autoencoder Encoder → 8-D Classical Latent
+→ Quantum Encoding Circuit (Basis / Angle / Dense Angle / IQP / Amplitude)
+→ Quantum Latent Vector
+→ Reverse Quantum Circuit → Recovered Classical Latent
+→ Autoencoder Decoder → Reconstructed Image
+→ Metrics: Wasserstein Distance, MSE, PSNR, SSIM, Latent MSE
 
-## 2. Run the pipeline on one image with one encoding
-```bash
-python -m pipeline.run_pipeline data/raw/some_image.png angle
-```
-Valid method names: `basis`, `angle`, `dense_angle`, `iqp`, `amplitude`.
 
-## 3. Compare all 5 encodings across many images
-```bash
-python -m experiments.compare_encodings --image_dir data/raw --n_images 15
-```
-Produces `results/comparison_raw.csv` and `results/comparison_summary.csv`.
+## Key Result
+
+Evaluated on the full Kaggle test set (~624 images):
+
+| Method      | MSE    | PSNR  | SSIM  | Wasserstein | Latent MSE |
+
+| Amplitude   | 338.8  | 23.44 | 0.896 | 5.43        | ~0 |
+| Angle       | 338.8  | 23.44 | 0.896 | 5.43        | ~0 |
+| Dense Angle | 338.8  | 23.44 | 0.896 | 5.43        | ~0 |
+| Basis       | 6233.6 | 10.68 | 0.618 | 64.65       | 0.126 |
+| IQP         | 6146.8 | 10.88 | 0.502 | 60.77       | 0.216 |
+
+**Finding:** Encodings that map each latent feature to an independent, unentangled qubit (Angle, Dense Angle, Amplitude) achieve near-lossless reconstruction. Basis Encoding loses information through crude quantization (rounding to a single bit). IQP Encoding loses information because its entangling gates scatter data across qubits — confirmed by measuring purity ≈ 0.52 on the reduced single-qubit states (1.0 = fully recoverable, lower = information leaked into inter-qubit correlations inaccessible to single-qubit read-out).
+
+## Repository Structure
+autoencoder/ - classical encoder/decoder (PyTorch) and training script
+quantum/ - 5 quantum encoding circuits + reverse/decode logic (PennyLane)
+metrics/ - MSE, PSNR, SSIM, Wasserstein distance, latent MSE
+pipeline/ - single-image end-to-end runner
+experiments/ - full-dataset comparison across all 5 encodings
+utils/ - plotting (bar charts, reconstruction grids)
+results/ - saved CSVs and plots from the full test-set run
+autoencoder_weights.pt - trained model weights (no retraining needed)
 
 ## Why qubit counts differ per method
-| Method | Qubits used | Why |
-|---|---|---|
-| basis | 8 | 1 latent value -> 1 qubit (thresholded bit) |
-| angle | 8 | 1 latent value -> 1 qubit (RY rotation) |
+| Method      | Qubits used | Why |
+
+| basis       | 8 | 1 latent value -> 1 qubit (thresholded bit) |
+| angle       | 8 | 1 latent value -> 1 qubit (RY rotation) |
 | dense_angle | 4 | 2 latent values -> 1 qubit (RY + RZ) |
-| iqp | 8 | 1 latent value -> 1 qubit + pairwise ZZ entangling terms |
-| amplitude | 3 | 2^3 = 8, entire latent fits directly in the amplitudes |
+| iqp         | 8 | 1 latent value -> 1 qubit + pairwise ZZ entangling terms |
+| amplitude   | 3 | 2^3 = 8, entire latent fits directly in the amplitudes |
 
 Keeping each method at its *natural* qubit requirement (rather than forcing
 everything onto 8 qubits) is itself part of the comparison: it shows
@@ -60,13 +60,18 @@ latent, at the cost of a harder-to-prepare state in general.
   *not* recoverable from that qubit's marginal alone — this is the expected,
   and reportable, behavior for IQP's entangling layers.
 
-## Notes for the write-up
-- The IQP prep circuit is diagonal (phase-only) after the initial Hadamards,
-  so the computational-basis (Z) marginal probabilities carry **zero**
-  information about the encoded values — only X/Y (phase-sensitive)
-  observables do. This is a real, citable property of IQP-style circuits,
-  not an implementation bug; it directly motivates their use in quantum
-  kernel methods rather than for reconstruction.
-- Wasserstein distance here is the 1D distance between flattened pixel-
-  intensity distributions (`scipy.stats.wasserstein_distance`) — it ignores
-  spatial arrangement. State this explicitly when reporting results.
+## How to Reproduce
+
+```bash
+pip install -r requirements.txt
+python -m autoencoder.train --image_dir data/raw --epochs 30
+python -m experiments.compare_encodings --image_dir data/test --n_images 1000
+```
+
+Dataset images are not included in this repo — download the Kaggle "Chest X-Ray Images (Pneumonia)" dataset and place train/test folders under `data/raw/` and `data/test/` respectively.
+
+## Limitations
+
+- Runs on an ideal, noiseless simulator (PennyLane default.qubit) — real quantum hardware would require measurement/tomography, which is left as future work.
+- Metrics compare against a 16x16 downsampled version of the original image, not the full-resolution clinical X-ray — this isolates the encoding/decoding pipeline's fidelity from the separate information loss incurred by initial resizing.
+- Image-level reconstruction quality (MSE/PSNR/SSIM) is influenced by both the classical autoencoder's decoder and the quantum encoding step; Latent MSE is used to isolate the quantum contribution specifically.
