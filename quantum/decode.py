@@ -51,6 +51,19 @@ def _decode_dense_angle(latent_in, method, latent_dim):
         recon.append(phi / np.pi)
     return np.array(recon[:latent_dim])
 
+def _decode_entangled_angle(latent_in, method, latent_dim):
+    """Same read-out approach as IQP: per-qubit reduced Bloch vector.
+    Since the CNOT ring entangles neighboring qubits, purity < 1 is
+    expected here too -- this isolates entanglement itself (rather than
+    IQP's specific diagonal-phase structure) as the cause of information
+    loss."""
+    bloch = get_reduced_bloch_vectors(latent_in, method)
+    recon, purities = [], []
+    for (rx, ry, rz, purity) in bloch:
+        theta = np.arccos(np.clip(rz, -1, 1))
+        recon.append(theta / np.pi)
+        purities.append(purity)
+    return np.array(recon[:latent_dim]), np.array(purities)
 
 def _decode_iqp(latent_in, method, latent_dim):
     """KEY RESEARCH FINDING: the IQP prep circuit (H, then only diagonal
@@ -101,6 +114,10 @@ def reconstruct_latent(latent, method, latent_dim=LATENT_DIM):
 
     elif method == "iqp":
         recon, purities = _decode_iqp(latent, method, latent_dim)
+        diagnostics["mean_purity"] = float(np.mean(purities))
+
+    elif method == "entangled_angle":
+        recon, purities = _decode_entangled_angle(latent, method, latent_dim)
         diagnostics["mean_purity"] = float(np.mean(purities))
 
     elif method == "amplitude":

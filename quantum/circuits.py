@@ -44,6 +44,18 @@ def _dense_angle_prep(latent, wires):
         qml.RY(theta, wires=w)
         qml.RZ(phi, wires=w)
 
+def _entangled_angle_prep(latent, wires):
+    """Same as Angle Encoding, but with a ring of CNOT gates added afterward
+    to entangle neighboring qubits. Used as a controlled comparison against
+    plain Angle Encoding, to test whether entanglement itself (not IQP's
+    specific structure) is what causes reconstruction loss."""
+    angles = np.asarray(latent) * np.pi
+    qml.AngleEmbedding(angles, wires=wires, rotation="Y")
+    n = len(wires)
+    for i in range(n):
+        qml.CNOT(wires=[wires[i], wires[(i + 1) % n]])
+
+
 
 def _iqp_prep(latent, wires, n_repeats=2):
     angles = np.asarray(latent) * np.pi
@@ -59,11 +71,12 @@ def _amplitude_prep(latent, wires):
 
 
 ENCODERS = {
-    "basis":       {"n_qubits": 8, "prep": _basis_prep},
-    "angle":       {"n_qubits": 8, "prep": _angle_prep},
-    "dense_angle": {"n_qubits": 4, "prep": _dense_angle_prep},
-    "iqp":         {"n_qubits": 8, "prep": _iqp_prep},
-    "amplitude":   {"n_qubits": 3, "prep": _amplitude_prep},
+    "basis":            {"n_qubits": 8, "prep": _basis_prep},
+    "angle":            {"n_qubits": 8, "prep": _angle_prep},
+    "dense_angle":      {"n_qubits": 4, "prep": _dense_angle_prep},
+    "iqp":              {"n_qubits": 8, "prep": _iqp_prep},
+    "amplitude":         {"n_qubits": 3, "prep": _amplitude_prep},
+    "entangled_angle":  {"n_qubits": 8, "prep": _entangled_angle_prep},
 }
 
 
