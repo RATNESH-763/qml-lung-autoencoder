@@ -55,7 +55,19 @@ def _entangled_angle_prep(latent, wires):
     for i in range(n):
         qml.CNOT(wires=[wires[i], wires[(i + 1) % n]])
 
-
+def _entangled_dense_angle_prep(latent, wires):
+    """Same as Dense Angle Encoding (2 features per qubit via RY+RZ), but
+    with a ring of CNOT gates added afterward. Tests whether entanglement
+    corrupts both packed features (theta from RY, phi from RZ) equally."""
+    latent = np.asarray(latent)
+    n = len(wires)
+    for i, w in enumerate(wires):
+        theta = latent[2 * i] * np.pi
+        phi = latent[2 * i + 1] * np.pi
+        qml.RY(theta, wires=w)
+        qml.RZ(phi, wires=w)
+    for i in range(n):
+        qml.CNOT(wires=[wires[i], wires[(i + 1) % n]])
 
 def _iqp_prep(latent, wires, n_repeats=2):
     angles = np.asarray(latent) * np.pi
@@ -71,12 +83,13 @@ def _amplitude_prep(latent, wires):
 
 
 ENCODERS = {
-    "basis":            {"n_qubits": 8, "prep": _basis_prep},
-    "angle":            {"n_qubits": 8, "prep": _angle_prep},
-    "dense_angle":      {"n_qubits": 4, "prep": _dense_angle_prep},
-    "iqp":              {"n_qubits": 8, "prep": _iqp_prep},
-    "amplitude":         {"n_qubits": 3, "prep": _amplitude_prep},
-    "entangled_angle":  {"n_qubits": 8, "prep": _entangled_angle_prep},
+    "basis":                   {"n_qubits": 8, "prep": _basis_prep},
+    "angle":                   {"n_qubits": 8, "prep": _angle_prep},
+    "dense_angle":             {"n_qubits": 4, "prep": _dense_angle_prep},
+    "iqp":                     {"n_qubits": 8, "prep": _iqp_prep},
+    "amplitude":                {"n_qubits": 3, "prep": _amplitude_prep},
+    "entangled_angle":         {"n_qubits": 8, "prep": _entangled_angle_prep},
+    "entangled_dense_angle":  {"n_qubits": 4, "prep": _entangled_dense_angle_prep},
 }
 
 

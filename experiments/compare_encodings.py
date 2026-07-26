@@ -13,7 +13,7 @@ import pandas as pd
 
 from pipeline.run_pipeline import load_trained_autoencoder, run_single
 
-METHODS = ["basis", "angle", "dense_angle", "iqp", "amplitude", "entangled_angle"]
+METHODS = ["basis", "angle", "dense_angle", "iqp", "amplitude", "entangled_angle", "entangled_dense_angle"]
 
 
 def list_images(image_dir, n_images):

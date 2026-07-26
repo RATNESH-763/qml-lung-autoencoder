@@ -1,15 +1,16 @@
 # Quantum-Latent Image Reconstruction — Encoding Comparison
 
-A proof-of-concept pipeline comparing 6 quantum data-encoding schemes on chest X-ray images (Kaggle Chest X-Ray Pneumonia dataset), evaluating how well each preserves information through an encode → quantum circuit → decode round trip.
+A proof-of-concept pipeline comparing 7 quantum data-encoding schemes on chest X-ray images (Kaggle Chest X-Ray Pneumonia dataset), evaluating how well each preserves information through an encode → quantum circuit → decode round trip.
 
 ## Pipeline
 Image → Preprocessing (16x16 grayscale)
 → Autoencoder Encoder → 8-D Classical Latent
-→ Quantum Encoding Circuit (Basis / Angle / Dense Angle / IQP / Amplitude / Entangled Angle)
+→ Quantum Encoding Circuit (Basis / Angle / Dense Angle / IQP / Amplitude / Entangled Angle / Entangled Dense Angle)
 → Quantum Latent Vector
 → Reverse Quantum Circuit → Recovered Classical Latent
 → Autoencoder Decoder → Reconstructed Image
 → Metrics: Wasserstein Distance, MSE, PSNR, SSIM, Latent MSE
+
 
 ## Key Result
 
@@ -20,13 +21,14 @@ Evaluated on the full Kaggle test set (~624 images):
 | Amplitude | 338.8 | 23.44 | 0.896 | 5.43 | ~0 | 0.78–0.94 (entangled, but read out globally) |
 | Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 | 1.0 (no entanglement) |
 | Dense Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 | 1.0 (no entanglement) |
+| Entangled Dense Angle | 4044.6 | 13.16 | 0.593 | 45.57 | 0.081 | ~0.54 |
 | Entangled Angle | 5060.5 | 11.56 | 0.583 | 60.73 | 0.035 | ~0.59 |
-| IQP | 6146.8 | 10.88 | 0.502 | 60.77 | 0.216 | ~0.52 |
+| IQP | 6146.8 | 10.88 | 0.502 | 60.77 | 0.216 | ~0.51 |
 | Basis | 6233.6 | 10.68 | 0.618 | 64.65 | 0.126 | 1.0 (cannot entangle — see below) |
 
-**Finding:** Encodings that map each latent feature to an independent, unentangled qubit (Angle, Dense Angle) achieve near-lossless reconstruction. Basis Encoding loses information through crude quantization (rounding to a single bit), not entanglement. IQP Encoding loses information because its entangling gates scatter data across qubits, confirmed by measuring purity ≈ 0.52 on reduced single-qubit states (1.0 = fully recoverable, lower = information leaked into inter-qubit correlations inaccessible to single-qubit read-out).
+**Finding:** Encodings that map each latent feature to an independent, unentangled qubit (Angle, Dense Angle) achieve near-lossless reconstruction. Basis Encoding loses information through crude quantization (rounding to a single bit), not entanglement. IQP Encoding loses information because its entangling gates scatter data across qubits, confirmed by measuring purity ≈ 0.51 on reduced single-qubit states (1.0 = fully recoverable, lower = information leaked into inter-qubit correlations inaccessible to single-qubit read-out).
 
-**Controlled experiment (Entangled Angle):** taking plain Angle Encoding and adding only a ring of CNOT gates afterward reproduced IQP-level reconstruction loss (Wasserstein 60.73 vs 60.77, purity ~0.59 vs ~0.52) — directly demonstrating that entanglement itself, not IQP's specific gate structure, is the mechanism responsible for information loss under single-qubit read-out.
+**Controlled experiments (Entangled Angle, Entangled Dense Angle):** taking Angle and Dense Angle Encoding and adding only a ring of CNOT gates afterward reproduced IQP-level reconstruction loss in both cases, directly demonstrating that entanglement itself, not IQP's specific gate structure, is the mechanism responsible for information loss under single-qubit read-out. Interestingly, Entangled Dense Angle showed lower purity and higher Latent_MSE than Entangled Angle, yet a *better* (lower) image-level Wasserstein distance — plausibly because fewer total entangling gates were applied across a smaller (4-qubit vs 8-qubit) register, though purity is not directly comparable across differently-sized registers; this is noted as an open question for further investigation.
 
 **Why Amplitude Encoding is entangled yet still lossless:** its state-prep circuit uses multi-qubit controlled rotations that generically entangle qubits (purity 0.78–0.94, not 1.0) — yet it reconstructs perfectly because it is read out *globally* (the full statevector at once, not per-qubit). This isolates the real variable: entanglement alone doesn't cause reconstruction loss — combining entanglement with a *local, per-qubit* read-out does.
 
@@ -34,13 +36,14 @@ Evaluated on the full Kaggle test set (~624 images):
 
 ## Repository Structure
 autoencoder/ - classical encoder/decoder (PyTorch) and training script
-quantum/ - 6 quantum encoding circuits + reverse/decode logic (PennyLane)
+quantum/ - 7 quantum encoding circuits + reverse/decode logic (PennyLane)
 metrics/ - MSE, PSNR, SSIM, Wasserstein distance, latent MSE
 pipeline/ - single-image end-to-end runner
-experiments/ - full-dataset comparison across all 6 encodings
+experiments/ - full-dataset comparison across all 7 encodings
 utils/ - plotting (bar charts, reconstruction grids)
 results/ - saved CSVs and plots from the full test-set run
 autoencoder_weights.pt - trained model weights (no retraining needed)
+
 
 ## Why qubit counts differ per method
 | Method | Qubits used | Why |
@@ -51,13 +54,14 @@ autoencoder_weights.pt - trained model weights (no retraining needed)
 | iqp | 8 | 1 latent value -> 1 qubit + pairwise ZZ entangling terms |
 | amplitude | 3 | 2^3 = 8, entire latent fits directly in the amplitudes |
 | entangled_angle | 8 | same as angle, plus a ring of CNOT gates (controlled entanglement experiment) |
+| entangled_dense_angle | 4 | same as dense_angle, plus a ring of CNOT gates (controlled entanglement experiment) |
 
 Keeping each method at its *natural* qubit requirement (rather than forcing everything onto 8 qubits) is itself part of the comparison: it shows amplitude encoding is drastically more qubit-efficient for a fixed-size latent, at the cost of a harder-to-prepare state in general.
 
 ## What "Quantum Latent Vector" means here
 - **basis / amplitude**: the full statevector (exact, ideal-simulator access).
 - **angle**: per-qubit marginal probability of measuring |1>.
-- **dense_angle / iqp / entangled_angle**: per-qubit reduced density matrix (Bloch vector + purity), obtained via partial trace over the rest of the register. Purity < 1 means information has leaked into inter-qubit correlations and is *not* recoverable from that qubit's marginal alone.
+- **dense_angle / iqp / entangled_angle / entangled_dense_angle**: per-qubit reduced density matrix (Bloch vector + purity), obtained via partial trace over the rest of the register. Purity < 1 means information has leaked into inter-qubit correlations and is *not* recoverable from that qubit's marginal alone.
 
 ## How to Reproduce
 
@@ -75,3 +79,7 @@ Dataset images are not included in this repo — download the Kaggle "Chest X-Ra
 - Metrics compare against a 16x16 downsampled version of the original image, not the full-resolution clinical X-ray — this isolates the encoding/decoding pipeline's fidelity from the separate information loss incurred by initial resizing.
 - Image-level reconstruction quality (MSE/PSNR/SSIM) is influenced by both the classical autoencoder's decoder and the quantum encoding step; Latent MSE is used to isolate the quantum contribution specifically.
 - Non-entangling encodings (Basis, Angle, Dense Angle) achieve the best reconstruction fidelity, but are classically simulable product-state preparations that do not exploit any genuinely quantum computational resource. This suggests reconstruction fidelity and "quantumness" are, in this context, opposing objectives rather than complementary ones — entangling encodings like IQP are more relevant to tasks such as classification, where the goal is a rich feature space rather than exact recoverability.
+
+## Proposed Future Extension: Correlation-Weighted Entangled Encoding
+
+An original encoding idea developed from this project's findings: rather than entangling qubits uniformly (as in IQP) or never (as in Angle/Dense Angle), compute the correlation matrix between the 8 autoencoder latent dimensions across the training set, then add controlled entangling gates (e.g. CRZ) only between qubit pairs with high correlation, scaled by the correlation strength. The hypothesis is that entangling genuinely redundant features costs little reconstruction fidelity (since the entangled information is partially duplicated anyway), while leaving independent features unentangled preserves their exact recoverability — potentially achieving better qubit efficiency than any single uniform strategy tested here. Scoped as the next stage of this project; not yet implemented or validated.

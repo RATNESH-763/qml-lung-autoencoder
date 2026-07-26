@@ -65,6 +65,21 @@ def _decode_entangled_angle(latent_in, method, latent_dim):
         purities.append(purity)
     return np.array(recon[:latent_dim]), np.array(purities)
 
+def _decode_entangled_dense_angle(latent_in, method, latent_dim):
+    """Same read-out as dense_angle (per-qubit Bloch vector -> theta, phi),
+    but the underlying circuit is now entangled via a CNOT ring. Compares
+    how much each packed feature (theta vs phi) degrades under entanglement."""
+    bloch = get_reduced_bloch_vectors(latent_in, method)
+    recon, purities = [], []
+    for (rx, ry, rz, purity) in bloch:
+        theta = np.arccos(np.clip(rz, -1, 1))
+        phi = np.arctan2(ry, rx)
+        phi = phi if phi >= 0 else phi + np.pi
+        recon.append(theta / np.pi)
+        recon.append(phi / np.pi)
+        purities.append(purity)
+    return np.array(recon[:latent_dim]), np.array(purities)
+
 def _decode_iqp(latent_in, method, latent_dim):
     """KEY RESEARCH FINDING: the IQP prep circuit (H, then only diagonal
     RZ / ZZ phase gates) never changes computational-basis probabilities,
@@ -118,6 +133,10 @@ def reconstruct_latent(latent, method, latent_dim=LATENT_DIM):
 
     elif method == "entangled_angle":
         recon, purities = _decode_entangled_angle(latent, method, latent_dim)
+        diagnostics["mean_purity"] = float(np.mean(purities))
+
+    elif method == "entangled_dense_angle":
+        recon, purities = _decode_entangled_dense_angle(latent, method, latent_dim)
         diagnostics["mean_purity"] = float(np.mean(purities))
 
     elif method == "amplitude":
