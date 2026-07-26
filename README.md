@@ -38,19 +38,20 @@ results/ - saved CSVs and plots from the full test-set run
 autoencoder_weights.pt - trained model weights (no retraining needed)
 
 ## Why qubit counts differ per method
+| Method | Qubits used | Why |
+|---|---|---|
+| basis | 8 | 1 latent value -> 1 qubit (thresholded bit) |
+| angle | 8 | 1 latent value -> 1 qubit (RY rotation) |
+| dense_angle | 4 | 2 latent values -> 1 qubit (RY + RZ) |
+| iqp | 8 | 1 latent value -> 1 qubit + pairwise ZZ entangling terms |
+| amplitude | 3 | 2^3 = 8, entire latent fits directly in the amplitudes |
 
-| Method | MSE | PSNR | SSIM | Wasserstein | Latent MSE |
-|---|---|---|---|---|---|
-| Amplitude | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
-| Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
-| Dense Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
-| Basis | 6233.6 | 10.68 | 0.618 | 64.65 | 0.126 |
-| IQP | 6146.8 | 10.88 | 0.502 | 60.77 | 0.216 |
 
 Keeping each method at its *natural* qubit requirement (rather than forcing
 everything onto 8 qubits) is itself part of the comparison: it shows
 amplitude encoding is drastically more qubit-efficient for a fixed-size
 latent, at the cost of a harder-to-prepare state in general.
+
 
 ## What "Quantum Latent Vector" means here
 - **basis / amplitude**: the full statevector (exact, ideal-simulator access).
