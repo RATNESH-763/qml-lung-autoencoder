@@ -17,13 +17,13 @@ Image → Preprocessing (16x16 grayscale)
 
 Evaluated on the full Kaggle test set (~624 images):
 
-| Method      | MSE    | PSNR  | SSIM  | Wasserstein | Latent MSE |
-
-| Amplitude   | 338.8  | 23.44 | 0.896 | 5.43        | ~0 |
-| Angle       | 338.8  | 23.44 | 0.896 | 5.43        | ~0 |
-| Dense Angle | 338.8  | 23.44 | 0.896 | 5.43        | ~0 |
-| Basis       | 6233.6 | 10.68 | 0.618 | 64.65       | 0.126 |
-| IQP         | 6146.8 | 10.88 | 0.502 | 60.77       | 0.216 |
+| Method | MSE | PSNR | SSIM | Wasserstein | Latent MSE |
+|---|---|---|---|---|---|
+| Amplitude | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
+| Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
+| Dense Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
+| Basis | 6233.6 | 10.68 | 0.618 | 64.65 | 0.126 |
+| IQP | 6146.8 | 10.88 | 0.502 | 60.77 | 0.216 |
 
 **Finding:** Encodings that map each latent feature to an independent, unentangled qubit (Angle, Dense Angle, Amplitude) achieve near-lossless reconstruction. Basis Encoding loses information through crude quantization (rounding to a single bit). IQP Encoding loses information because its entangling gates scatter data across qubits — confirmed by measuring purity ≈ 0.52 on the reduced single-qubit states (1.0 = fully recoverable, lower = information leaked into inter-qubit correlations inaccessible to single-qubit read-out).
 
@@ -38,13 +38,14 @@ results/ - saved CSVs and plots from the full test-set run
 autoencoder_weights.pt - trained model weights (no retraining needed)
 
 ## Why qubit counts differ per method
-| Method      | Qubits used | Why |
 
-| basis       | 8 | 1 latent value -> 1 qubit (thresholded bit) |
-| angle       | 8 | 1 latent value -> 1 qubit (RY rotation) |
-| dense_angle | 4 | 2 latent values -> 1 qubit (RY + RZ) |
-| iqp         | 8 | 1 latent value -> 1 qubit + pairwise ZZ entangling terms |
-| amplitude   | 3 | 2^3 = 8, entire latent fits directly in the amplitudes |
+| Method | MSE | PSNR | SSIM | Wasserstein | Latent MSE |
+|---|---|---|---|---|---|
+| Amplitude | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
+| Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
+| Dense Angle | 338.8 | 23.44 | 0.896 | 5.43 | ~0 |
+| Basis | 6233.6 | 10.68 | 0.618 | 64.65 | 0.126 |
+| IQP | 6146.8 | 10.88 | 0.502 | 60.77 | 0.216 |
 
 Keeping each method at its *natural* qubit requirement (rather than forcing
 everything onto 8 qubits) is itself part of the comparison: it shows
